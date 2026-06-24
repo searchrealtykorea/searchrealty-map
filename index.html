@@ -102,6 +102,12 @@ function parseCSV(text) {
 }
 
 function makeInfoContent(item) {
+    const cadastralImage = item["지적도이미지"];
+
+    const imageHtml = cadastralImage
+        ? `<br><img src="images/${cadastralImage}" style="width:260px; margin-top:8px; border:1px solid #ccc;">`
+        : "";
+
     return `
     <div class="info-window">
         <strong>${item["건물명/사례명"] || ""}</strong><br>
@@ -111,6 +117,7 @@ function makeInfoContent(item) {
         매매금액: ${item["매매금액(억원)"] || ""}억원<br>
         대지면적: ${item["대지면적(㎡)"] || ""}㎡<br>
         연면적: ${item["연면적(㎡)"] || ""}㎡
+        ${imageHtml}
     </div>`;
 }
 
