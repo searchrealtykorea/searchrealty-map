@@ -2,18 +2,36 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>써치리얼티 거래사례 지도 v16</title>
+<title>써치리얼티 거래사례 지도 v17</title>
 <style>
-html, body { width:100%; height:100%; margin:0; padding:0; font-family:Arial, sans-serif; }
-#wrap { display:flex; width:100%; height:100%; }
+html, body {
+    width:100%;
+    height:100%;
+    margin:0;
+    padding:0;
+    font-family:Arial, sans-serif;
+}
+
+#wrap {
+    display:flex;
+    width:100%;
+    height:100%;
+}
+
 #list {
-    width:330px; height:100%; overflow-y:auto;
+    width:330px;
+    height:100%;
+    overflow-y:auto;
     border-right:1px solid #ccc;
     background:#f8f8f8;
     padding:10px;
     box-sizing:border-box;
 }
-#map { flex:1; height:100%; }
+
+#map {
+    flex:1;
+    height:100%;
+}
 
 .item {
     background:white;
@@ -25,32 +43,54 @@ html, body { width:100%; height:100%; margin:0; padding:0; font-family:Arial, sa
     font-size:13px;
 }
 
-.item:hover { background:#eaf3ff; }
-.item-title { font-weight:bold; margin-bottom:4px; }
-.item-fail { color:#c00000; font-size:12px; margin-top:4px; }
-.info-window { font-size:13px; line-height:1.5; padding:6px; }
+.item:hover {
+    background:#eaf3ff;
+}
+
+.item-title {
+    font-weight:bold;
+    margin-bottom:4px;
+}
+
+.item-fail {
+    color:#c00000;
+    font-size:12px;
+    margin-top:4px;
+}
+
+.info-window {
+    font-size:13px;
+    line-height:1.5;
+    padding:6px;
+}
 
 .price-label {
     position:relative;
     background:white;
-    border:1px solid #b8b8d8;
-    border-radius:18px;
-    padding:6px 12px;
+    border:1px solid #b9b7e8;
+    border-radius:16px;
+    padding:4px 10px 5px 10px;
     box-shadow:0 2px 6px rgba(0,0,0,0.25);
     text-align:center;
     cursor:pointer;
+    white-space:nowrap;
+    line-height:1.05;
     transform:translate(-50%, -100%);
+}
+
+.price-label:hover {
+    background:#f3f4ff;
 }
 
 .price {
     color:#5b55ff;
-    font-size:20px;
+    font-size:17px;
     font-weight:bold;
 }
 
 .date {
     color:#555;
-    font-size:15px;
+    font-size:13px;
     font-weight:bold;
 }
 
@@ -58,11 +98,25 @@ html, body { width:100%; height:100%; margin:0; padding:0; font-family:Arial, sa
     content:"";
     position:absolute;
     left:50%;
-    bottom:-8px;
+    bottom:-7px;
     transform:translateX(-50%);
-    border-left:7px solid transparent;
-    border-right:7px solid transparent;
-    border-top:9px solid white;
+    width:0;
+    height:0;
+    border-left:6px solid transparent;
+    border-right:6px solid transparent;
+    border-top:8px solid white;
+}
+
+.price-label:before {
+    content:"";
+    position:absolute;
+    left:50%;
+    bottom:-12px;
+    transform:translateX(-50%);
+    width:7px;
+    height:7px;
+    background:#5b55ff;
+    border-radius:50%;
 }
 </style>
 
@@ -88,16 +142,53 @@ let currentInfoWindow = null;
 let currentCircle = null;
 
 function csvToRows(text) {
-    return text.trim().split('\n').map(row => row.split(','));
+    const rows = [];
+    let row = [];
+    let value = '';
+    let insideQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"' && insideQuotes && next === '"') {
+            value += '"';
+            i++;
+        } else if (char === '"') {
+            insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+            row.push(value.trim());
+            value = '';
+        } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+            if (value || row.length) {
+                row.push(value.trim());
+                rows.push(row);
+                row = [];
+                value = '';
+            }
+            if (char === '\r' && next === '\n') i++;
+        } else {
+            value += char;
+        }
+    }
+
+    if (value || row.length) {
+        row.push(value.trim());
+        rows.push(row);
+    }
+
+    return rows;
 }
 
 function parseCSV(text) {
     const rows = csvToRows(text);
-    const headers = rows[0];
+    const headers = rows[0].map(h => h.replace(/^\uFEFF/, '').trim());
 
-    return rows.slice(1).map(row => {
+    return rows.slice(1).map(values => {
         const obj = {};
-        headers.forEach((h, i) => obj[h.trim()] = row[i] ? row[i].trim() : '');
+        headers.forEach((header, i) => {
+            obj[header] = values[i] ? values[i].trim() : '';
+        });
         return obj;
     });
 }
@@ -105,17 +196,22 @@ function parseCSV(text) {
 function shortDate(value) {
     if (!value) return "";
     const parts = value.split(".");
-    return "'" + parts[0].slice(-2) + "." + parts[1];
+    if (parts.length >= 2) {
+        return "'" + parts[0].slice(-2) + "." + parts[1].padStart(2, "0");
+    }
+    return value;
 }
 
 function makeInfoContent(item) {
     return `
     <div class="info-window">
-        <strong>${item["건물명/사례명"]}</strong><br>
-        주소: ${item["지번주소"]}<br>
-        용도: ${item["용도"]}<br>
-        매매년월: ${item["매매년월"]}<br>
-        매매금액: ${item["매매금액(억원)"]}억원
+        <strong>${item["건물명/사례명"] || ""}</strong><br>
+        주소: ${item["지번주소"] || item["도로명주소"] || ""}<br>
+        용도: ${item["용도"] || ""}<br>
+        매매년월: ${item["매매년월"] || ""}<br>
+        매매금액: ${item["매매금액(억원)"] || ""}억원<br>
+        대지면적: ${item["대지면적(㎡)"] || ""}㎡<br>
+        연면적: ${item["연면적(㎡)"] || ""}㎡
     </div>`;
 }
 
@@ -123,43 +219,42 @@ function createListItem(item, index) {
     const div = document.createElement("div");
     div.className = "item";
     div.innerHTML = `
-        <div class="item-title">${index+1}. ${item["건물명/사례명"]}</div>
-        <div>${item["지번주소"]}</div>
-        <div>${item["매매금액(억원)"]}억원 / ${item["매매년월"]}</div>
+        <div class="item-title">${index + 1}. ${item["건물명/사례명"] || "무명 사례"}</div>
+        <div>${item["지번주소"] || item["도로명주소"] || ""}</div>
+        <div>${item["매매금액(억원)"] || ""}억원 / ${item["매매년월"] || ""}</div>
     `;
     listBox.appendChild(div);
     return div;
 }
 
 function addMapObject(item, position, listItem) {
-    const marker = new kakao.maps.Marker({
-        map: map,
-        position: position,
-        opacity: 0
-    });
-
     const content = document.createElement("div");
     content.className = "price-label";
     content.innerHTML = `
-        <div class="price">${item["매매금액(억원)"]}억</div>
-        <div class="date">${shortDate(item["매매년월"])}</div>
+        <div class="price">${item["매매금액(억원)"] || ""}억</div>
+        <div class="date">${shortDate(item["매매년월"] || "")}</div>
     `;
 
     const overlay = new kakao.maps.CustomOverlay({
+        map: map,
         position: position,
         content: content,
         yAnchor: 1
     });
 
-    overlay.setMap(map);
-
     const info = new kakao.maps.InfoWindow({
+        position: position,
         content: makeInfoContent(item)
     });
 
     function openCase() {
-        if (currentInfoWindow) currentInfoWindow.close();
-        if (currentCircle) currentCircle.setMap(null);
+        if (currentInfoWindow) {
+            currentInfoWindow.close();
+        }
+
+        if (currentCircle) {
+            currentCircle.setMap(null);
+        }
 
         currentCircle = new kakao.maps.Circle({
             center: position,
@@ -173,7 +268,8 @@ function addMapObject(item, position, listItem) {
         });
 
         currentCircle.setMap(map);
-        info.open(map, marker);
+
+        info.open(map);
         currentInfoWindow = info;
 
         map.setLevel(2);
@@ -185,21 +281,44 @@ function addMapObject(item, position, listItem) {
 }
 
 function handleItem(item, index) {
+    if (item["표시여부"] && item["표시여부"].toUpperCase() !== "Y") return;
+
     const listItem = createListItem(item, index);
 
     const lat = parseFloat(item["위도"]);
     const lng = parseFloat(item["경도"]);
 
     if (!isNaN(lat) && !isNaN(lng)) {
-        addMapObject(item, new kakao.maps.LatLng(lat, lng), listItem);
+        const position = new kakao.maps.LatLng(lat, lng);
+        addMapObject(item, position, listItem);
+        return;
     }
+
+    const address = item["지번주소"] || item["도로명주소"];
+
+    if (!address) {
+        listItem.innerHTML += `<div class="item-fail">주소 없음</div>`;
+        return;
+    }
+
+    geocoder.addressSearch(address, function(result, status) {
+        if (status === kakao.maps.services.Status.OK) {
+            const position = new kakao.maps.LatLng(result[0].y, result[0].x);
+            addMapObject(item, position, listItem);
+        } else {
+            listItem.innerHTML += `<div class="item-fail">위치검색 실패</div>`;
+        }
+    });
 }
 
 fetch('./real_estate_data.csv')
-.then(r => r.text())
+.then(response => response.text())
 .then(text => {
     const data = parseCSV(text);
     data.forEach(handleItem);
+})
+.catch(error => {
+    alert("CSV 파일을 불러오지 못했습니다: " + error);
 });
 </script>
 </body>
