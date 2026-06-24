@@ -2,34 +2,71 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>써치리얼티 거래사례 지도 v15</title>
+<title>써치리얼티 거래사례 지도 v16</title>
 <style>
 html, body { width:100%; height:100%; margin:0; padding:0; font-family:Arial, sans-serif; }
 #wrap { display:flex; width:100%; height:100%; }
 #list {
-    width:330px;
-    height:100%;
-    overflow-y:auto;
-    border-right:1px solid #ccc;
-    background:#f8f8f8;
-    padding:10px;
-    box-sizing:border-box;
+    width:330px; height:100%; overflow-y:auto; border-right:1px solid #ccc;
+    background:#f8f8f8; padding:10px; box-sizing:border-box;
 }
 #map { flex:1; height:100%; }
 .item {
-    background:white;
-    border:1px solid #ddd;
-    border-radius:6px;
-    padding:9px;
-    margin-bottom:8px;
-    cursor:pointer;
-    font-size:13px;
+    background:white; border:1px solid #ddd; border-radius:6px; padding:9px;
+    margin-bottom:8px; cursor:pointer; font-size:13px;
 }
 .item:hover { background:#eaf3ff; }
 .item-title { font-weight:bold; margin-bottom:4px; }
 .item-fail { color:#c00000; font-size:12px; margin-top:4px; }
 .info-window { font-size:13px; line-height:1.5; padding:6px; }
 .info-window img { cursor:pointer; }
+
+.price-label {
+    position:relative;
+    background:white;
+    border:1px solid #b8b8d8;
+    border-radius:18px;
+    padding:5px 12px 6px 12px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.25);
+    text-align:center;
+    line-height:1.05;
+    cursor:pointer;
+    white-space:nowrap;
+    transform:translate(-50%, -100%);
+}
+.price-label .price {
+    color:#5b55ff;
+    font-size:21px;
+    font-weight:bold;
+}
+.price-label .date {
+    color:#555;
+    font-size:17px;
+    font-weight:bold;
+}
+.price-label:after {
+    content:"";
+    position:absolute;
+    left:50%;
+    bottom:-8px;
+    transform:translateX(-50%);
+    width:0;
+    height:0;
+    border-left:7px solid transparent;
+    border-right:7px solid transparent;
+    border-top:9px solid white;
+}
+.price-label:before {
+    content:"";
+    position:absolute;
+    left:50%;
+    bottom:-10px;
+    transform:translateX(-50%);
+    width:9px;
+    height:9px;
+    background:#5b55ff;
+    border-radius:50%;
+}
 </style>
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=37a7f5faa819d54cc945a408dbb82f69&libraries=services"></script>
 </head>
@@ -104,6 +141,28 @@ function parseCSV(text) {
     });
 }
 
+function shortDate(value) {
+    if (!value) return "";
+    const parts = value.split(".");
+    if (parts.length >= 2) {
+        const year = parts[0].slice(-2);
+        const month = parts[1].padStart(2, "0");
+        return "'" + year + "." + month;
+    }
+    return value;
+}
+
+function makePriceLabel(item) {
+    const price = item["매매금액(억원)"] || "";
+    const date = shortDate(item["매매년월"] || "");
+
+    return `
+    <div class="price-label">
+        <div class="price">${price}억</div>
+        <div class="date">${date}</div>
+    </div>`;
+}
+
 function makeInfoContent(item) {
     const cadastralImage = item["지적도이미지"];
 
@@ -142,7 +201,14 @@ function addMapObject(item, position, listItem) {
     const marker = new kakao.maps.Marker({
         map: map,
         position: position,
-        title: item["건물명/사례명"] || item["지번주소"]
+        opacity: 0
+    });
+
+    const overlay = new kakao.maps.CustomOverlay({
+        map: map,
+        position: position,
+        content: makePriceLabel(item),
+        yAnchor: 1
     });
 
     const info = new kakao.maps.InfoWindow({
@@ -172,7 +238,6 @@ function addMapObject(item, position, listItem) {
         });
 
         currentCircle.setMap(map);
-
         kakao.maps.event.addListener(currentCircle, 'click', openCase);
 
         info.open(map, marker);
@@ -183,6 +248,315 @@ function addMapObject(item, position, listItem) {
     }
 
     kakao.maps.event.addListener(marker, 'click', openCase);
+
+    setTimeout(() => {
+        const labels = document.querySelectorAll('.price-label');
+        const label = labels[labels.length - 1];
+        if (label) label.onclick = openCase;
+    }, 0);
+
+    listItem.onclick = openCase;
+}
+
+function handleItem(item, index) {
+    if (item["표시여부"] && item["표시여부"].toUpperCase() !== "Y") return;
+
+    const listItem = createListItem(item, index);
+
+    const lat = parseFloat(item["위도"]);
+    const lng = parseFloat(item["경도"]);
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+        const position = new kakao.maps.LatLng(lat, lng);
+        addMapObject(item, position, listItem);
+        return;
+    }
+
+    const address = item["지번주소"] || item["도로명주소"];
+
+    if (!address) {
+        listItem.innerHTML += `<div class="item-fail">주소 없음</div>`;
+        return;
+    }
+
+    geocoder.addressSearch(address, function(result, status) {
+        if (status === kakao.maps.services.Status.OK) {
+            const position = new kakao.maps.LatLng(result[0].y, result[0].x);
+            addMapObject(item, position, listItem);
+        } else {
+            listItem.innerHTML += `<div class="item-fail">위치검색 실패</div>`;
+        }
+    });
+}
+
+fetch('./real_estate_data.csv')
+.then(response => response.text())
+.then(text => {
+    const data = parseCSV(text);
+    data.forEach(handleItem);
+})
+.catch(error => {
+    alert("CSV 파일을 불러오지 못했습니다: " + error);
+});
+</script>
+</body>
+</html><!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>써치리얼티 거래사례 지도 v16</title>
+<style>
+html, body { width:100%; height:100%; margin:0; padding:0; font-family:Arial, sans-serif; }
+#wrap { display:flex; width:100%; height:100%; }
+#list {
+    width:330px; height:100%; overflow-y:auto; border-right:1px solid #ccc;
+    background:#f8f8f8; padding:10px; box-sizing:border-box;
+}
+#map { flex:1; height:100%; }
+.item {
+    background:white; border:1px solid #ddd; border-radius:6px; padding:9px;
+    margin-bottom:8px; cursor:pointer; font-size:13px;
+}
+.item:hover { background:#eaf3ff; }
+.item-title { font-weight:bold; margin-bottom:4px; }
+.item-fail { color:#c00000; font-size:12px; margin-top:4px; }
+.info-window { font-size:13px; line-height:1.5; padding:6px; }
+.info-window img { cursor:pointer; }
+
+.price-label {
+    position:relative;
+    background:white;
+    border:1px solid #b8b8d8;
+    border-radius:18px;
+    padding:5px 12px 6px 12px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.25);
+    text-align:center;
+    line-height:1.05;
+    cursor:pointer;
+    white-space:nowrap;
+    transform:translate(-50%, -100%);
+}
+.price-label .price {
+    color:#5b55ff;
+    font-size:21px;
+    font-weight:bold;
+}
+.price-label .date {
+    color:#555;
+    font-size:17px;
+    font-weight:bold;
+}
+.price-label:after {
+    content:"";
+    position:absolute;
+    left:50%;
+    bottom:-8px;
+    transform:translateX(-50%);
+    width:0;
+    height:0;
+    border-left:7px solid transparent;
+    border-right:7px solid transparent;
+    border-top:9px solid white;
+}
+.price-label:before {
+    content:"";
+    position:absolute;
+    left:50%;
+    bottom:-10px;
+    transform:translateX(-50%);
+    width:9px;
+    height:9px;
+    background:#5b55ff;
+    border-radius:50%;
+}
+</style>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=37a7f5faa819d54cc945a408dbb82f69&libraries=services"></script>
+</head>
+
+<body>
+<div id="wrap">
+    <div id="list"><h3>거래사례 목록</h3></div>
+    <div id="map"></div>
+</div>
+
+<script>
+const map = new kakao.maps.Map(document.getElementById('map'), {
+    center: new kakao.maps.LatLng(37.501274, 127.039585),
+    level: 5
+});
+
+const geocoder = new kakao.maps.services.Geocoder();
+const listBox = document.getElementById('list');
+
+let currentInfoWindow = null;
+let currentCircle = null;
+
+function csvToRows(text) {
+    const rows = [];
+    let row = [];
+    let value = '';
+    let insideQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"' && insideQuotes && next === '"') {
+            value += '"';
+            i++;
+        } else if (char === '"') {
+            insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+            row.push(value.trim());
+            value = '';
+        } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+            if (value || row.length) {
+                row.push(value.trim());
+                rows.push(row);
+                row = [];
+                value = '';
+            }
+            if (char === '\r' && next === '\n') i++;
+        } else {
+            value += char;
+        }
+    }
+
+    if (value || row.length) {
+        row.push(value.trim());
+        rows.push(row);
+    }
+
+    return rows;
+}
+
+function parseCSV(text) {
+    const rows = csvToRows(text);
+    const headers = rows[0].map(h => h.replace(/^\uFEFF/, '').trim());
+
+    return rows.slice(1).map(values => {
+        const obj = {};
+        headers.forEach((header, i) => {
+            obj[header] = values[i] ? values[i].trim() : '';
+        });
+        return obj;
+    });
+}
+
+function shortDate(value) {
+    if (!value) return "";
+    const parts = value.split(".");
+    if (parts.length >= 2) {
+        const year = parts[0].slice(-2);
+        const month = parts[1].padStart(2, "0");
+        return "'" + year + "." + month;
+    }
+    return value;
+}
+
+function makePriceLabel(item) {
+    const price = item["매매금액(억원)"] || "";
+    const date = shortDate(item["매매년월"] || "");
+
+    return `
+    <div class="price-label">
+        <div class="price">${price}억</div>
+        <div class="date">${date}</div>
+    </div>`;
+}
+
+function makeInfoContent(item) {
+    const cadastralImage = item["지적도이미지"];
+
+    const imageHtml = cadastralImage
+        ? `<br><img src="./images/${cadastralImage}" 
+              style="width:260px; margin-top:8px; border:1px solid #ccc;"
+              onclick="window.open('./images/${cadastralImage}', '_blank')">`
+        : "";
+
+    return `
+    <div class="info-window">
+        <strong>${item["건물명/사례명"] || ""}</strong><br>
+        주소: ${item["지번주소"] || item["도로명주소"] || ""}<br>
+        용도: ${item["용도"] || ""}<br>
+        매매년월: ${item["매매년월"] || ""}<br>
+        매매금액: ${item["매매금액(억원)"] || ""}억원<br>
+        대지면적: ${item["대지면적(㎡)"] || ""}㎡<br>
+        연면적: ${item["연면적(㎡)"] || ""}㎡
+        ${imageHtml}
+    </div>`;
+}
+
+function createListItem(item, index) {
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = `
+        <div class="item-title">${index + 1}. ${item["건물명/사례명"] || "무명 사례"}</div>
+        <div>${item["지번주소"] || item["도로명주소"] || ""}</div>
+        <div>${item["매매금액(억원)"] || ""}억원 / ${item["매매년월"] || ""}</div>
+    `;
+    listBox.appendChild(div);
+    return div;
+}
+
+function addMapObject(item, position, listItem) {
+    const marker = new kakao.maps.Marker({
+        map: map,
+        position: position,
+        opacity: 0
+    });
+
+    const overlay = new kakao.maps.CustomOverlay({
+        map: map,
+        position: position,
+        content: makePriceLabel(item),
+        yAnchor: 1
+    });
+
+    const info = new kakao.maps.InfoWindow({
+        content: makeInfoContent(item)
+    });
+
+    function openCase() {
+        if (currentInfoWindow) {
+            currentInfoWindow.close();
+        }
+
+        if (currentCircle) {
+            currentCircle.setMap(null);
+        }
+
+        const markerPosition = marker.getPosition();
+
+        currentCircle = new kakao.maps.Circle({
+            center: markerPosition,
+            radius: 35,
+            strokeWeight: 2,
+            strokeColor: '#ff0000',
+            strokeOpacity: 0.9,
+            strokeStyle: 'dash',
+            fillColor: '#ff0000',
+            fillOpacity: 0.12
+        });
+
+        currentCircle.setMap(map);
+        kakao.maps.event.addListener(currentCircle, 'click', openCase);
+
+        info.open(map, marker);
+        currentInfoWindow = info;
+
+        map.setLevel(2);
+        map.panTo(markerPosition);
+    }
+
+    kakao.maps.event.addListener(marker, 'click', openCase);
+
+    setTimeout(() => {
+        const labels = document.querySelectorAll('.price-label');
+        const label = labels[labels.length - 1];
+        if (label) label.onclick = openCase;
+    }, 0);
+
     listItem.onclick = openCase;
 }
 
