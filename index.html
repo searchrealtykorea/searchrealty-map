@@ -4,101 +4,36 @@
 <meta charset="utf-8">
 <title>써치리얼티 거래사례 지도 v17</title>
 <style>
-html, body {
-    width:100%;
-    height:100%;
-    margin:0;
-    padding:0;
-    font-family:Arial, sans-serif;
-}
-
-#wrap {
-    display:flex;
-    width:100%;
-    height:100%;
-}
-
-#list {
-    width:330px;
-    height:100%;
-    overflow-y:auto;
-    border-right:1px solid #ccc;
-    background:#f8f8f8;
-    padding:10px;
-    box-sizing:border-box;
-}
-
-#map {
-    flex:1;
-    height:100%;
-}
-
-.item {
-    background:white;
-    border:1px solid #ddd;
-    border-radius:6px;
-    padding:9px;
-    margin-bottom:8px;
-    cursor:pointer;
-    font-size:13px;
-}
-
-.item:hover {
-    background:#eaf3ff;
-}
-
-.item-title {
-    font-weight:bold;
-    margin-bottom:4px;
-}
-
-.item-fail {
-    color:#c00000;
-    font-size:12px;
-    margin-top:4px;
-}
-
-.info-window {
-    font-size:13px;
-    line-height:1.5;
-    padding:6px;
-}
+html, body { width:100%; height:100%; margin:0; padding:0; font-family:Arial, sans-serif; }
+#wrap { display:flex; width:100%; height:100%; }
+#list { width:330px; height:100%; overflow-y:auto; border-right:1px solid #ccc; background:#f8f8f8; padding:10px; box-sizing:border-box; }
+#map { flex:1; height:100%; }
+.item { background:white; border:1px solid #ddd; border-radius:6px; padding:9px; margin-bottom:8px; cursor:pointer; font-size:13px; }
+.item:hover { background:#eaf3ff; }
+.item-title { font-weight:bold; margin-bottom:4px; }
+.item-fail { color:#c00000; font-size:12px; margin-top:4px; }
+.info-window { font-size:13px; line-height:1.5; padding:6px; }
 
 .price-label {
     position:relative;
     background:white;
     border:1px solid #b9b7e8;
-    border-radius:16px;
-    padding:4px 10px 5px 10px;
+    border-radius:15px;
+    padding:4px 10px;
     box-shadow:0 2px 6px rgba(0,0,0,0.25);
     text-align:center;
     cursor:pointer;
     white-space:nowrap;
     line-height:1.05;
-    transform:translate(-50%, -100%);
 }
-
-.price-label:hover {
-    background:#f3f4ff;
-}
-
-.price {
-    color:#5b55ff;
-    font-size:17px;
-    font-weight:bold;
-}
-
-.date {
-    color:#555;
-    font-size:13px;
-    font-weight:bold;
-}
-
+.price-label:hover { background:#f3f4ff; }
+.price { color:#5b55ff; font-size:17px; font-weight:bold; }
+.date { color:#555; font-size:13px; font-weight:bold; }
 .price-label:after {
     content:"";
     position:absolute;
     left:50%;
-    bottom:-7px;
+    bottom:-8px;
     transform:translateX(-50%);
     width:0;
     height:0;
@@ -106,12 +41,11 @@ html, body {
     border-right:6px solid transparent;
     border-top:8px solid white;
 }
-
 .price-label:before {
     content:"";
     position:absolute;
     left:50%;
-    bottom:-12px;
+    bottom:-13px;
     transform:translateX(-50%);
     width:7px;
     height:7px;
@@ -119,7 +53,6 @@ html, body {
     border-radius:50%;
 }
 </style>
-
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=37a7f5faa819d54cc945a408dbb82f69&libraries=services"></script>
 </head>
 
@@ -137,7 +70,6 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 
 const geocoder = new kakao.maps.services.Geocoder();
 const listBox = document.getElementById('list');
-
 let currentInfoWindow = null;
 let currentCircle = null;
 
@@ -216,8 +148,8 @@ function makeInfoContent(item) {
 }
 
 function createListItem(item, index) {
-    const div = document.createElement("div");
-    div.className = "item";
+    const div = document.createElement('div');
+    div.className = 'item';
     div.innerHTML = `
         <div class="item-title">${index + 1}. ${item["건물명/사례명"] || "무명 사례"}</div>
         <div>${item["지번주소"] || item["도로명주소"] || ""}</div>
@@ -239,7 +171,7 @@ function addMapObject(item, position, listItem) {
         map: map,
         position: position,
         content: content,
-        yAnchor: 1
+        yAnchor: 1.15
     });
 
     const info = new kakao.maps.InfoWindow({
@@ -248,13 +180,8 @@ function addMapObject(item, position, listItem) {
     });
 
     function openCase() {
-        if (currentInfoWindow) {
-            currentInfoWindow.close();
-        }
-
-        if (currentCircle) {
-            currentCircle.setMap(null);
-        }
+        if (currentInfoWindow) currentInfoWindow.close();
+        if (currentCircle) currentCircle.setMap(null);
 
         currentCircle = new kakao.maps.Circle({
             center: position,
@@ -268,7 +195,6 @@ function addMapObject(item, position, listItem) {
         });
 
         currentCircle.setMap(map);
-
         info.open(map);
         currentInfoWindow = info;
 
@@ -284,27 +210,20 @@ function handleItem(item, index) {
     if (item["표시여부"] && item["표시여부"].toUpperCase() !== "Y") return;
 
     const listItem = createListItem(item, index);
-
     const lat = parseFloat(item["위도"]);
     const lng = parseFloat(item["경도"]);
 
     if (!isNaN(lat) && !isNaN(lng)) {
-        const position = new kakao.maps.LatLng(lat, lng);
-        addMapObject(item, position, listItem);
+        addMapObject(item, new kakao.maps.LatLng(lat, lng), listItem);
         return;
     }
 
     const address = item["지번주소"] || item["도로명주소"];
-
-    if (!address) {
-        listItem.innerHTML += `<div class="item-fail">주소 없음</div>`;
-        return;
-    }
+    if (!address) return;
 
     geocoder.addressSearch(address, function(result, status) {
         if (status === kakao.maps.services.Status.OK) {
-            const position = new kakao.maps.LatLng(result[0].y, result[0].x);
-            addMapObject(item, position, listItem);
+            addMapObject(item, new kakao.maps.LatLng(result[0].y, result[0].x), listItem);
         } else {
             listItem.innerHTML += `<div class="item-fail">위치검색 실패</div>`;
         }
