@@ -29,6 +29,7 @@ html, body { width:100%; height:100%; margin:0; padding:0; font-family:Arial, sa
 .item-title { font-weight:bold; margin-bottom:4px; }
 .item-fail { color:#c00000; font-size:12px; margin-top:4px; }
 .info-window { font-size:13px; line-height:1.5; padding:6px; }
+.info-window img { cursor:pointer; }
 </style>
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=37a7f5faa819d54cc945a408dbb82f69&libraries=services"></script>
 </head>
@@ -103,11 +104,13 @@ function parseCSV(text) {
     });
 }
 
-function makeInfoContent(item) {   
+function makeInfoContent(item) {
     const cadastralImage = item["지적도이미지"];
 
     const imageHtml = cadastralImage
-        ? `<br><img src="./images/${cadastralImage}" style="width:260px; margin-top:8px; border:1px solid #ccc;">`
+        ? `<br><img src="./images/${cadastralImage}" 
+              style="width:260px; margin-top:8px; border:1px solid #ccc;"
+              onclick="window.open('./images/${cadastralImage}', '_blank')">`
         : "";
 
     return `
@@ -175,8 +178,8 @@ function addMapObject(item, position, listItem) {
         info.open(map, marker);
         currentInfoWindow = info;
 
-        map.panTo(markerPosition);
         map.setLevel(2);
+        map.panTo(markerPosition);
     }
 
     kakao.maps.event.addListener(marker, 'click', openCase);
