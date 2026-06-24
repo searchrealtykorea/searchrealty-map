@@ -47,7 +47,9 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 
 const geocoder = new kakao.maps.services.Geocoder();
 const listBox = document.getElementById('list');
+
 let currentInfoWindow = null;
+let currentCircle = null;
 
 function csvToRows(text) {
     const rows = [];
@@ -140,18 +142,6 @@ function addMapObject(item, position, listItem) {
         title: item["건물명/사례명"] || item["지번주소"]
     });
 
-    const circle = new kakao.maps.Circle({
-        center: position,
-        radius: 35,
-        strokeWeight: 2,
-        strokeColor: '#ff0000',
-        strokeOpacity: 0.9,
-        strokeStyle: 'dash',
-        fillColor: '#ff0000',
-        fillOpacity: 0.12,
-        map: map
-    });
-
     const info = new kakao.maps.InfoWindow({
         content: makeInfoContent(item)
     });
@@ -161,15 +151,35 @@ function addMapObject(item, position, listItem) {
             currentInfoWindow.close();
         }
 
+        if (currentCircle) {
+            currentCircle.setMap(null);
+        }
+
+        const markerPosition = marker.getPosition();
+
+        currentCircle = new kakao.maps.Circle({
+            center: markerPosition,
+            radius: 35,
+            strokeWeight: 2,
+            strokeColor: '#ff0000',
+            strokeOpacity: 0.9,
+            strokeStyle: 'dash',
+            fillColor: '#ff0000',
+            fillOpacity: 0.12
+        });
+
+        currentCircle.setMap(map);
+
+        kakao.maps.event.addListener(currentCircle, 'click', openCase);
+
         info.open(map, marker);
         currentInfoWindow = info;
 
-        map.setCenter(position);
+        map.panTo(markerPosition);
         map.setLevel(2);
     }
 
     kakao.maps.event.addListener(marker, 'click', openCase);
-    kakao.maps.event.addListener(circle, 'click', openCase);
     listItem.onclick = openCase;
 }
 
