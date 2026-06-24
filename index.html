@@ -101,10 +101,11 @@ function parseCSV(text) {
     });
 }
 
+function makeInfoContent(item) {   
     const cadastralImage = item["지적도이미지"];
 
     const imageHtml = cadastralImage
-        ? `<br><img src="images/${cadastralImage}" style="width:260px; margin-top:8px; border:1px solid #ccc;">`
+        ? `<br><img src="./images/${cadastralImage}" style="width:260px; margin-top:8px; border:1px solid #ccc;">`
         : "";
 
     return `
